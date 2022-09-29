@@ -1,0 +1,96 @@
+---
+title: "Assignment 4 Tabling Inflation"
+author: "Tyler Mason"
+date: "2022-09-28"
+output: html_document
+---
+
+```{r setup, include=F}
+
+library(tidyverse)
+library(readxl)
+library(janitor)
+library(scales)
+library(lubridate)
+library(timetk)
+library(riingo)
+library(tidyquant)
+library(gt)
+library(gtExtras)
+library(reactable)
+library(reactablefmtr)
+library(geomtextpath)
+
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, comment = NA)
+```
+
+```{r}
+pcepi_cpi <- 
+  tribble(
+    ~symbol,    ~name,
+    "CPIAUCSL", "CPI Inflation",
+    "PCEPI",    "PCE Inflation") %>% 
+  tq_get(get = "economic.data", from = "1979-01-01") %>% 
+  group_by(name) %>% 
+ 
+  mutate(mom_change = price/lag(price) - 1) 
+
+pcepi_cpi %>% 
+  filter(!is.na(mom_change)) %>% 
+  arrange(desc(date)) %>% 
+  slice(1, n())
+```
+
+```{r}
+pcepi_core <- 
+  "PCEPILFE" %>% 
+  tq_get(get = "economic.data", from = "1979-01-01") %>% 
+  mutate(pcepi_core_mom = price/lag(price) - 1)
+
+cpi_core <- 
+  "CPILFESL" %>% 
+  tq_get(get = "economic.data", from = "1979-01-01") %>% 
+  mutate(cpi_core_mom = price/lag(price) - 1)
+
+pcepi_core_cpi_core <- 
+  pcepi_cpi %>% 
+  select(date, name, mom_change) %>%
+  filter(date >= "2021-01-01") %>% 
+  pivot_wider(names_from = "name", values_from = "mom_change") %>% 
+  rename_with(~str_to_lower(.) %>% 
+                str_replace(" inflation", "_mom")) %>%
+  left_join(cpi_core %>% select(date, cpi_core_mom)) %>% 
+  left_join(pcepi_core %>% select(date, pcepi_core_mom)) 
+
+pcepi_core_cpi_core %>% 
+  tail() %>% 
+  mutate(across(.cols = is.numeric, 
+                .fns = formattable::percent)
+  )
+```
+
+```{r}
+pcepi_core_cpi_core %>% 
+  mutate(date = as.yearmon(date)) %>% 
+  filter(date >= "2021-01-01") %>% 
+arrange(desc(date)) %>% 
+  gt(rowname_col = "date") %>% 
+  cols_label(
+    pce_mom = "PCEPI",
+    pcepi_core_mom = "PCEPI Core",
+    cpi_mom = "CPI",
+    cpi_core_mom = "CPI Core"
+  ) %>% 
+  fmt_percent(
+    columns = is.numeric
+  ) %>% 
+  tab_header(title = "PCEPI, CPI and Core MOM % Changes",
+             subtitle = "The measure matters")  %>% 
+    data_color(
+     columns =  is.numeric,
+     colors = scales::col_numeric(colorspace::diverge_hcl(n = 25,  palette = "Blue-Red 3"),
+     domain = c(.01, .001))
+  )
+#I chose the data_color function to color the table because I believe the interpretation of the coloring is more intuitive with a  blue-red palette rather than a purple_green palette with the hulk function. High positive % changes in inflation are denoted by green in the hulk function, which could be erroneously interpreted as a generally positive result. However, with the data_color function, high positive % changes in inflation are denoted by the color red, which is intuitively interpreted as a generally negative result, as intended. 
+```
+

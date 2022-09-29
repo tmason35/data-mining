@@ -1,0 +1,58 @@
+---
+title: "Assignment 1 Data Wrangling"
+author: "Tyler Mason"
+date: "2022-08-30"
+output: html_document
+---
+
+```{r}
+install.packages(tidyverse)
+install.packages(readxl)
+install.packages(janitor)
+install.packages(curl)
+install.packages(lubridate)
+```
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(curl)
+library(lubridate)
+library(janitor)
+```
+
+###Import
+
+```{r}
+url <- "https://apps.bea.gov/national/Release/XLS/Survey/Section1All_xls.xlsx"
+destfile <- "Section1All_xls.xlsx"
+curl_download(url,destfile)
+```
+
+```{r}
+excel_sheets(destfile) %>% 
+  tibble()
+```
+###Wrangle
+
+```{r}
+services_percent_change_from_1999Q2_to_present <-
+read_excel(destfile, sheet='T10101-Q', skip=7) %>% 
+  select(-Line) %>% 
+  rename(account = 1, code = 2) %>% 
+  mutate(
+    across(c(-account, -code), as.numeric)
+    ) %>% 
+  pivot_longer(-account:-code, names_to = "date", values_to = "acct pct diff") %>% 
+  mutate(date = parse_date_time(date, orders = 'Yq'), date = ymd(date)) %>% 
+  filter(date >= "1999-04-01", account == "Services") %>% 
+  arrange(desc(date)) %>% 
+  relocate(date, everything()) %>% 
+  head()
+  
+```
+###Mutate Explanation
+#The mutate function allows you to add new variables or change existing variables in a column
+#https://dplyr.tidyverse.org/reference/mutate.html
+
+

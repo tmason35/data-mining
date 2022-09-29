@@ -1,0 +1,153 @@
+---
+title: "Data Visualization HW"
+author: "Tyler Mason"
+date: "2022-09-02"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(janitor)
+library(scales)
+library(lubridate)
+
+url <- "https://apps.bea.gov/national/Release/XLS/Survey/Section1All_xls.xlsx"
+
+destfile <- "Section1All_xls.xlsx"
+
+curl::curl_download(url, destfile)
+
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F, comment = NA)
+```
+
+### Import and Wrangle
+
+
+```{r}
+services_percent_change_from_spreadsheet <- 
+ read_excel(destfile, sheet = "T10101-Q", 
+    skip = 7) %>% 
+  select(-1)  %>% 
+  rename(account = 1, code = 2) %>%
+  mutate(
+    across(c(-account, -code), as.numeric)
+    ) %>% 
+  pivot_longer(-account:-code, 
+               names_to = "date", 
+               values_to = "percent_change") %>% 
+  mutate(date = parse_date_time(date, orders = "Yq"),
+         date = ymd(date)) %>%  
+  filter(account == "Services")  %>% 
+  arrange(desc(date)) %>% 
+  relocate(date, everything()) 
+```
+```{r}
+services_percent_change_from_spreadsheet %>% 
+  head()
+```
+
+###Data Visualization
+
+```{r}
+services_percent_change_from_spreadsheet %>% 
+  filter(date >= "2018-01-01") %>% 
+  #ggplot()
+  ggplot(aes(x = date, y = percent_change)) +
+  geom_line(color = "darkmagenta")+
+  labs(title = "Percent Change Services from Previous Quarter", 
+       subtitle = 'Q on Q',
+       y = "Percent Change (%)", 
+       x = "",
+       caption = "Source: BEA data") +
+   scale_y_continuous(labels = percent_format(scale = 1, accuracy = .1),
+                      breaks = pretty_breaks(n = 10)) +
+  scale_x_date(labels = function(x) zoo::format.yearqtr(x, "%Y Q%q"), 
+               breaks = pretty_breaks(n = 10)) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = .5)) 
+```
+
+```{r}
+imports_exports_comp <- 
+ read_excel(destfile, sheet = "T10101-Q", 
+    skip = 7) %>% 
+  select(-1)  %>% 
+  rename(account = 1, code = 2) %>%
+  mutate(
+    across(c(-account, -code), as.numeric)
+    ) %>% 
+  pivot_longer(-account:-code, 
+               names_to = "date", 
+               values_to = "percent_change") %>% 
+  mutate(date = parse_date_time(date, orders = "Yq"),
+         date = ymd(date)) %>%  
+  filter(account %in% c("Imports", "Exports")) %>% 
+  arrange(desc(date)) %>% 
+  relocate(date, everything()) 
+```
+```{r}
+imports_exports_comp %>% 
+  print()
+```
+
+```{r}
+imports_exports_fixed <-
+imports_exports_comp %>% 
+  filter(code%in% c("A020RL", "A021RL")) %>% 
+  select(-code) %>% 
+  pivot_wider(names_from = account,
+              values_from = percent_change) %>% 
+  print()
+```
+
+
+
+```{r}
+imports_exports_fixed %>% 
+  filter(date >= "2000-01-01") %>%
+  ggplot(aes(x =  Imports, y = Exports)) +
+  geom_point(
+    color = "aquamarine3",
+    show.legend = T
+  ) +
+  geom_smooth(
+    method = "lm",
+    se = F,
+    color = "coral3",
+    size = .5) +
+  labs(title = "Imports vs Exports", 
+       y = "Exports", 
+       x = "Imports",
+       caption = "Source: BEA data",
+       color = "") +
+  scale_y_continuous(labels = percent_format(scale = 1),
+                     breaks = pretty_breaks(n = 10)) +
+   scale_x_continuous(labels = percent_format(scale = 1),
+                     breaks = pretty_breaks(n = 10)) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = .5))
+```
+```{r}
+#facet_wrap() expands individual components of a chart into their own chart. For instance. A histogram of percent_change GDP accounts over time can be separated into multiple charts, each with a distinct account.
+```
+
+```{r}
+imports_exports_comp %>% 
+  filter(account == "Exports", date >= "2000-01-01") %>%
+  ggplot(aes(x = account , y = percent_change)) +
+  geom_violin(color = "darkmagenta")  +
+  labs(title = "Violin of percent changes", 
+       y = "", 
+       x = "",
+       caption = "Source: BEA data",
+       fill = "") +
+  scale_y_continuous(labels = percent_format(scale = 1),
+                     breaks = pretty_breaks(n = 10)) +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = .5))
+  
+```
+
+
+

@@ -1,0 +1,50 @@
+---
+title: "Text Mining Assignment"
+author: "Tyler Mason"
+date: "2022-09-21"
+output: html_document
+---
+
+```{r}
+install.packages("pdftools")
+install.packages("tidytext")
+```
+
+```{r setup, include=FALSE}
+library(pdftools)
+library(tidyverse)
+library(tidytext)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+mpr_import <- pdf_text("https://www.federalreserve.gov/monetarypolicy/files/20210709_mprfullreport.pdf")
+head(mpr_import)
+```
+
+```{r}
+mpr_text_raw <-
+  tibble(text = str_split(mpr_import, "\r") %>% unlist()) %>%
+  mutate(report = "July2022",
+         line = row_number(),
+         text = str_squish(text))
+
+head(fed_text_raw)
+```
+
+```{r}
+mpr_text <- 
+  mpr_text_raw %>% 
+  unnest_tokens(word, text)
+
+mpr_text  %>% 
+  mutate(word = gsub("[^A-Za-z ]", "", word)) %>%
+  filter(word != "") %>%
+  anti_join(stop_words) %>%
+  inner_join(get_sentiments("bing"), 
+            by = c("word") )%>%
+  count(word, sentiment, sort = TRUE) %>% 
+  slice(1:5)
+```
+```
+
